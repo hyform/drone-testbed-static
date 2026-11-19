@@ -12,9 +12,8 @@ full-viewport workspaces with a shared project/file toolbar and optional panels:
 - `business.html`: market selection and submitted-plan comparison.
 
 The original Unity WebGL application, flight physics, and planning calculations are reused without
-modifying or rebuilding the compiled engine. The live app still runs without an
-account, while `backend/` now provides the production-oriented API foundation for
-durable cross-device storage. No package installation is needed for either runtime.
+modifying or rebuilding the compiled engine. No application backend, account,
+database service, paid API, or package installation is needed to run the app.
 
 ## Run or deploy
 
@@ -120,29 +119,13 @@ legacy API-shaped requests to the selected storage implementation.
 - `docs/Build/`: original Unity WebGL build, unchanged.
 
 The apparent legacy Unity API URLs are handled inside the browser and do not
-reach the static host. They are separate from the project snapshot API below.
-Collaboration, AI services, and experiment administration remain outside this
-version.
-
-## Optional backend foundation
-
-`backend/` contains a zero-runtime-dependency Cloudflare Worker and D1 schema for
-validated cross-device project snapshots. It is additive: the deployed GitHub
-Pages application still uses local IndexedDB and project files, and does not send
-project data anywhere. The API supports health checks, protected snapshot
-creation, public snapshot reads, edit-token updates, ETags, strict origin and
-payload checks, and optimistic conflict handling.
-
-Project creation is disabled unless the server has an encrypted
-`CREATE_ACCESS_KEY`; that key is never committed or embedded in the public app.
-The backend is not wired into the live UI until a production endpoint, identity
-or cohort-access model, retention policy, and abuse controls are selected. See
-`backend/README.md` for the deployment contract.
+reach the static host. There is no application backend. Collaboration, AI
+services, and experiment administration remain outside this version.
 
 ## Validation
 
 ```sh
-node --test tests/project.test.cjs tests/service-worker.test.cjs tests/static.test.cjs tests/backend.test.mjs
+node --test tests/project.test.cjs tests/service-worker.test.cjs tests/static.test.cjs
 ```
 
 The automated suite covers legacy version 1 project compatibility, market/plan

@@ -1,6 +1,3 @@
 .DS_Store
 *.tar.gz
 *.zip
-backend/.dev.vars
-backend/.wrangler/
-backend/wrangler.toml
