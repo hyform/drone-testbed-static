@@ -26,5 +26,7 @@
       "payload": 5,
       "valid": true
     }
-  ]
+  ],
+  "scenario": null,
+  "plans": []
 }

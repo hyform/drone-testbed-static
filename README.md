@@ -1,13 +1,17 @@
-# HyForm static designer
+# HyForm browser application
 
 [Open the designer](https://hyform.github.io/drone-testbed-static/) ·
 [GitHub repository](https://github.com/hyform/drone-testbed-static)
 
-A standalone browser adaptation of the HyForm drone designer. The landing page
-introduces the tool; `designer.html` uses the full browser viewport, with a narrow
-file toolbar and optional project/help panels. The Full screen button also works.
+A standalone browser adaptation of the HyForm drone designer, flight evaluator,
+operations planner, and business planner. The landing page links to three
+full-viewport workspaces with a shared project/file toolbar and optional panels:
 
-The original Unity WebGL application and flight physics are reused without
+- `designer.html`: drone design and local flight evaluation;
+- `ops.html`: customer-route and delivery operations planning;
+- `business.html`: market selection and submitted-plan comparison.
+
+The original Unity WebGL application, flight physics, and planning calculations are reused without
 modifying or rebuilding the compiled engine. No application backend, account,
 database service, paid API, or package installation is needed to run the app.
 
@@ -42,7 +46,9 @@ Use **Save file** to download a `.hyform.json` file. It contains:
 - a project name, creation/update timestamps, and the current draft grammar;
 - the named vehicle library, with the original full-precision vehicle metrics;
 - the latest local simulation's logged metrics, at the precision exposed by the
-  original client (range and speed to two decimals; cost to whole dollars).
+  original client (range and speed to two decimals; cost to whole dollars);
+- the current Market 1 scenario and submitted operations plans, after those tools
+  have been used.
 
 **Open file** validates the entire file before changing the current project.
 Malformed files, unsupported versions, non-finite metrics, duplicate vehicle
@@ -62,6 +68,33 @@ Success / CouldNotStabilize / HitBoundary. Named vehicles submitted by Unity
 retain the verdict supplied in its vehicle record. An evaluation summary is
 marked as belonging to a previous design when the draft has since changed.
 
+The browser evaluation dock listens to the original activity stream. It reserves
+space below the Unity canvas while a flight is running or results are available,
+so its progress, metrics, and **Back to design** control do not cover the Unity
+verdict or controls. Returning to design reloads the autosaved draft into a clean
+design scene; it is offered only after the simulator records that evaluation has
+ended.
+
+## Operations and business planning
+
+The compiled WebGL bundle already includes the original `plan_tool` scene. The
+Operations and Business pages select its original modes with `scene=ops` and
+`scene=business`; there is no replacement planning model in JavaScript.
+
+The service worker supplies the scene's legacy data requests from the active
+browser project:
+
+- `/repo/scenario/` reads and versions the current market;
+- `/repo/planshort/` and `/repo/plan/` store and reopen submitted plans;
+- `/repo/vehicle/` shares named successful designs from the designer.
+
+Market 1 customer, payload, weight, and location data comes from
+`drone-testbed-server` commit `a390c949…`, file `ateams-basic.sql`. The original
+Unity code remains responsible for route limits, restricted airspace, delivery
+timing, operating/startup costs, and profit. Collaboration and server AI remain
+out of scope. A plan becomes durable when **Submit** names it; in-progress Unity
+route edits that have not been submitted are not restored after a reload.
+
 Browser autosave uses IndexedDB. It is a convenience, not a backup: clearing
 site data removes it. Download project files for durable storage and sharing.
 After the first successful load, the cached studio, file controls, and local
@@ -69,9 +102,11 @@ evaluation also work without a network connection.
 
 ## Architecture
 
-- `docs/index.html`, `landing.css`: introduction and launch link.
-- `docs/designer.html`, `app.js`, `studio.css`: full-window studio and file UI.
-- `docs/project-model.js`: versioned format, validation, and draft log parsing.
+- `docs/index.html`, `landing.css`: introduction and tool links.
+- `docs/designer.html`, `ops.html`, `business.html`, `app.js`, `studio.css`:
+  full-window workspaces, evaluation states, and file UI.
+- `docs/market-data.js`: canonical Market 1 data from the original release.
+- `docs/project-model.js`: versioned format, validation, and activity parsing.
 - `docs/local-store.js`: atomic device-local IndexedDB transactions.
 - `docs/service-worker.js`: cache and browser-local compatibility adapter for
   `/exper/session/`, `/repo/vehicle/`, and `/repo/datalog/`.
@@ -84,8 +119,12 @@ AI services, and experiment administration are outside this first version.
 ## Validation
 
 ```sh
-node --test tests/project.test.cjs
+node --test tests/project.test.cjs tests/service-worker.test.cjs tests/static.test.cjs
 ```
+
+The automated suite covers legacy version 1 project compatibility, market/plan
+round trips, local scenario and plan endpoint behavior, evaluation-state shell
+hooks, portable local assets, and hashes for every original compiled asset.
 
 Browser verification on 2026-11-19 (Chromium / Codex in-app browser):
 
@@ -103,6 +142,11 @@ Browser verification on 2026-11-19 (Chromium / Codex in-app browser):
    Network inspection confirmed legacy data responses came from the service
    worker. No application server was running.
 7. Entered and exited full-screen mode; checked the full-window layout and drawers.
+
+The 2026-11-19 evaluation-interface, Operations, and Business release was also
+checked with the automated suite and a local HTTP server. Browser computer-use
+was unavailable on the release workstation, so the new end-to-end visual flows
+were not falsely recorded as browser-verified here.
 
 The retained Unity runtime emits an old Emscripten warning about its fixed 30 fps
 loop and occasionally overlapping filesystem synchronization. These did not

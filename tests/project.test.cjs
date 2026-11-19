@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const model = require('../docs/project-model.js');
+const market = require('../docs/market-data.js');
 
 test('project files round-trip drafts, evaluated metrics, and the design library', () => {
   const p = model.newProject('Baseline study');
@@ -31,6 +32,7 @@ test('invalid imports fail before replacing the active project', () => {
     p => p.draftConfig = '*aMM0*bNM2,5,3',
     p => p.draftConfig = '*aMM0*aMM1,5,3',
     p => p.vehicles = [{id: 1, tag: 'bad', config: model.BASE_CONFIG, range: Infinity, velocity: 20, cost: 3, payload: 5}],
+    p => p.vehicles = [{id: 1, tag: 'unknown result', config: model.BASE_CONFIG, range: 10, velocity: 20, cost: 3, payload: 5}],
     p => p.lastEvaluation = { config: model.BASE_CONFIG, result: 'Success', range: NaN }
   ]) {
     const p = model.newProject(); change(p);
@@ -49,4 +51,31 @@ test('failed physics metrics are never upgraded to a successful flight', () => {
   model.applyLog(p, 'designer;Evaluated;' + model.BASE_CONFIG + ';range=-1.00;capacity=5;cost=3470;velocity=0.00');
   assert.equal(p.lastEvaluation.range, -1);
   assert.notEqual(p.lastEvaluation.result, 'Success');
+});
+
+test('version 1 projects without planning fields remain compatible', () => {
+  const legacy = model.newProject('Legacy design');
+  delete legacy.scenario;
+  delete legacy.plans;
+  const restored = model.validateProject(legacy);
+  assert.equal(restored.scenario, null);
+  assert.deepEqual(restored.plans, []);
+});
+
+test('the canonical local market and submitted plans round-trip in project files', () => {
+  const scenario = market.createScenario();
+  assert.equal(scenario.customers.length, 56);
+  assert.deepEqual(scenario.warehouse.address, { id: 113, x: -3.5, z: 0, region: 'warehouse' });
+  assert.equal(scenario.customers.filter(customer => customer.payload === 'food2').length, 10);
+
+  const p = model.newProject('Delivery study');
+  const vehicle = model.vehicle({ id: 1, tag: 'Baseline', config: model.BASE_CONFIG, result: 'Success', range: 10, velocity: 20, cost: 3470, payload: 5, valid: true });
+  p.vehicles.push(vehicle); p.scenario = scenario;
+  p.plans.push({
+    id: 1, tag: 'North route', valid: true, scenario,
+    paths: [{ id: 1, vehicle, warehouse: scenario.warehouse, customers: [{ ...scenario.customers[0], deliverytime: 0 }], leavetime: 0, returntime: 0 }]
+  });
+  const restored = model.validateProject(JSON.parse(JSON.stringify(p)));
+  assert.equal(restored.plans[0].paths[0].vehicle.tag, 'Baseline');
+  assert.equal(restored.plans[0].paths[0].customers[0].id, 57);
 });

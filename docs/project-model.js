@@ -13,6 +13,10 @@
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > 1e12) throw new Error('Invalid ' + name + '.');
     return value;
   }
+  function boolean(value, name) {
+    if (typeof value !== 'boolean') throw new Error('Invalid ' + name + '.');
+    return value;
+  }
   function configuration(value) {
     const config = text(value, 'design configuration', 10000);
     const parts = config.split(',');
@@ -53,14 +57,60 @@
   function vehicle(value) {
     return {
       id: number(value.id, 'design id'), tag: text(value.tag, 'design name', 100),
-      config: configuration(value.config), result: text(value.result || 'Success', 'result', 100),
+      config: configuration(value.config), result: text(value.result, 'result', 100),
       range: number(value.range, 'range', -1), velocity: number(value.velocity, 'velocity', -1),
       cost: number(value.cost, 'cost', -1), payload: number(value.payload, 'payload'), valid: value.valid !== false
     };
   }
+  function address(value) {
+    if (!value || typeof value !== 'object') throw new Error('Invalid address.');
+    return {
+      id: number(value.id, 'address id'), x: number(value.x, 'address x', -1000),
+      z: number(value.z, 'address z', -1000), region: text(value.region, 'address region', 40)
+    };
+  }
+  function customer(value, delivery = false) {
+    if (!value || typeof value !== 'object') throw new Error('Invalid customer.');
+    const result = {
+      id: number(value.id, 'customer id'), address: address(value.address),
+      market: number(value.market, 'market id'), payload: text(value.payload, 'customer payload', 40),
+      weight: number(value.weight, 'customer weight'), selected: boolean(value.selected, 'customer selection')
+    };
+    if (delivery) result.deliverytime = number(value.deliverytime ?? 0, 'delivery time');
+    return result;
+  }
+  function warehouse(value) {
+    if (!value || typeof value !== 'object') throw new Error('Invalid warehouse.');
+    return { id: number(value.id, 'warehouse id'), address: address(value.address) };
+  }
+  function scenario(value) {
+    if (value == null) return null;
+    if (!value || typeof value !== 'object' || !Array.isArray(value.customers) || value.customers.length > 500) throw new Error('Invalid market scenario.');
+    const customers = value.customers.map(item => customer(item));
+    if (new Set(customers.map(item => item.id)).size !== customers.length) throw new Error('The market has duplicate customer identifiers.');
+    return {
+      id: number(value.id, 'scenario id'), tag: text(value.tag, 'scenario name', 100),
+      version: number(value.version, 'scenario version'), warehouse: warehouse(value.warehouse), customers
+    };
+  }
+  function deliveryPath(value) {
+    if (!value || typeof value !== 'object' || !Array.isArray(value.customers) || value.customers.length > 500) throw new Error('Invalid delivery path.');
+    return {
+      id: number(value.id, 'path id'), vehicle: vehicle(value.vehicle), warehouse: warehouse(value.warehouse),
+      customers: value.customers.map(item => customer(item, true)),
+      leavetime: number(value.leavetime ?? 0, 'leave time'), returntime: number(value.returntime ?? 0, 'return time')
+    };
+  }
+  function plan(value) {
+    if (!value || typeof value !== 'object' || !Array.isArray(value.paths) || value.paths.length > 1000) throw new Error('Invalid operations plan.');
+    return {
+      id: number(value.id, 'plan id'), tag: text(value.tag, 'plan name', 100), valid: value.valid !== false,
+      scenario: scenario(value.scenario), paths: value.paths.map(deliveryPath)
+    };
+  }
   function newProject(name = 'Untitled project') {
     const now = new Date().toISOString();
-    return { format: FORMAT, version: VERSION, name, createdAt: now, updatedAt: now, draftConfig: BASE_CONFIG, lastEvaluation: null, vehicles: [] };
+    return { format: FORMAT, version: VERSION, name, createdAt: now, updatedAt: now, draftConfig: BASE_CONFIG, lastEvaluation: null, vehicles: [], scenario: null, plans: [] };
   }
   function validateProject(value) {
     if (!value || typeof value !== 'object' || value.format !== FORMAT) throw new Error('Choose a HyForm project (.hyform.json) file.');
@@ -68,10 +118,14 @@
     if (!Array.isArray(value.vehicles) || value.vehicles.length > 1000) throw new Error('Invalid project design library.');
     const vehicles = value.vehicles.map(vehicle);
     if (new Set(vehicles.map(v => v.id)).size !== vehicles.length) throw new Error('The project has duplicate design identifiers.');
+    if (value.plans != null && (!Array.isArray(value.plans) || value.plans.length > 1000)) throw new Error('Invalid project plan library.');
+    const plans = (value.plans || []).map(plan);
+    if (new Set(plans.map(p => p.id)).size !== plans.length) throw new Error('The project has duplicate plan identifiers.');
     return {
       format: FORMAT, version: VERSION, name: text(value.name, 'project name', 120),
       createdAt: text(value.createdAt, 'creation timestamp', 40), updatedAt: text(value.updatedAt, 'update timestamp', 40),
-      draftConfig: configuration(value.draftConfig), lastEvaluation: evaluation(value.lastEvaluation), vehicles
+      draftConfig: configuration(value.draftConfig), lastEvaluation: evaluation(value.lastEvaluation), vehicles,
+      scenario: scenario(value.scenario), plans
     };
   }
   function applyLog(project, action) {
@@ -94,7 +148,7 @@
     }
     return project;
   }
-  const api = { BASE_CONFIG, FORMAT, VERSION, configuration, vehicle, evaluation, newProject, validateProject, applyLog };
+  const api = { BASE_CONFIG, FORMAT, VERSION, configuration, vehicle, evaluation, scenario, plan, newProject, validateProject, applyLog };
   root.HyformProject = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(globalThis);
