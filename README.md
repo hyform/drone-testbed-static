@@ -4,12 +4,14 @@
 [GitHub repository](https://github.com/hyform/drone-testbed-static)
 
 A standalone browser adaptation of the HyForm drone designer, flight evaluator,
-operations planner, and business planner. The landing page links to three
-full-viewport workspaces with a shared project/file toolbar and optional panels:
+operations planner, business planner, and experimenter console. The landing page
+links to three full-viewport participant workspaces with a shared project/file
+toolbar and an experimenter surface:
 
 - `designer.html`: drone design and local flight evaluation;
 - `ops.html`: customer-route and delivery operations planning;
 - `business.html`: market selection and submitted-plan comparison.
+- `experimenter.html`: local team roster, direct pairing, and data collection.
 
 The original Unity WebGL application, flight physics, and planning calculations are reused without
 modifying or rebuilding the compiled engine. No application backend, account,
@@ -96,8 +98,8 @@ browser project:
 Market 1 customer, payload, weight, and location data comes from
 `drone-testbed-server` commit `a390c949…`, file `ateams-basic.sql`. The original
 Unity code remains responsible for route limits, restricted airspace, delivery
-timing, operating/startup costs, and profit. Collaboration and server AI remain
-out of scope. A plan becomes durable when **Submit** names it; in-progress Unity
+timing, operating/startup costs, and profit. Server AI remains out of scope. A
+plan becomes durable when **Submit** names it; in-progress Unity
 route edits that have not been submitted are not restored after a reload.
 
 Browser autosave uses IndexedDB. It is a convenience, not a backup: clearing
@@ -105,6 +107,68 @@ site data removes it. Download project files for durable storage and sharing.
 The application is online-first and does not precache its 16 MB Unity runtime
 for offline use. The service worker exists only to bridge the compiled client’s
 legacy API-shaped requests to the selected storage implementation.
+
+## Direct browser-to-browser transfer
+
+Each participant workspace is an independent individual/demo mode by default.
+Nothing connects or collects data until the person opens **Connect**. The panel
+supports optional WebRTC project transfer: one browser creates
+an offer, the second browser pastes it and creates an answer, and the first
+pastes that answer to finish the connection. The connection codes can be sent
+through any existing messaging channel; HyForm has no signaling server.
+
+After the encrypted data channel opens, either person can deliberately send the
+current project. The receiver validates the same versioned project format,
+previews its name and saved-item counts, and must confirm before replacing local
+work. Projects are never automatically merged or overwritten. Applying an
+incoming project reloads the workspace and ends the temporary connection.
+
+The peer setup uses the public STUN endpoint shown in the WebRTC project’s
+official peer-connection example to discover a direct route. STUN receives
+connection metadata, not project contents. There is no TURN relay, so some
+corporate, campus, or symmetric-NAT networks may prevent a connection.
+
+## Experimenter sessions
+
+`experimenter.html` maintains a browser-local roster and one independent manual
+peer connection per participant. An experimenter can create any number of teams,
+assign people to Design, Operations, Business, or Observer positions, and run
+individual/no-team participants alongside those teams. Each roster card has its
+own offer/answer flow, connection state, collection controls, and captured data,
+so several live participants can be managed at the same time.
+
+The experimenter creates an offer for a roster entry; that participant answers
+it from **Connect** in Design, Operations, or Business. The participant must
+separately enable **Allow experimenter data collection** before the console can
+request project or activity data. Connecting for chat does not silently grant
+collection permission, and an individual can use the full workspace without
+connecting at all.
+
+The experimenter browser is a small star-topology relay for four channel types:
+
+- **All participants · Announcements** reaches every connected roster entry;
+- **Team · Session** reaches everyone assigned to one team;
+- **Team · Position** reaches one Design, Operations, Business, or Observer group;
+- **Help · participant** is a direct participant/experimenter channel.
+
+These names and scopes adapt the original HyForm Team, Position, Session, and
+Help-channel concepts. They do not reuse the legacy Django chat backend. A
+participant receives only their assigned channel list; incoming participant
+messages are checked against it and then relayed by the experimenter to the
+currently connected recipients. There is no participant mesh, hosted room, or
+signaling service. Chat history is durable only in the experimenter browser;
+participant views keep the current connection's messages in memory.
+
+During a consenting live connection, the experimenter console requests and
+stores validated project snapshots plus the participant’s subsequent HyForm
+activity events. Captured projects, activity, roster assignments, teams, and
+chat stay in the experimenter browser’s IndexedDB. The console can download a
+project, export an individual versioned experiment-data JSON record, export a
+whole team's roster/data/chat record, or open a captured project in Design.
+Removing a member deletes that member and their collected project/activity data
+and chat records from the local roster. Removing an empty team also removes that
+team's session/position history. Connections are temporary and must be paired
+again after either page reloads.
 
 ## Architecture
 
@@ -114,23 +178,31 @@ legacy API-shaped requests to the selected storage implementation.
 - `docs/market-data.js`: canonical Market 1 data from the original release.
 - `docs/project-model.js`: versioned format, validation, and activity parsing.
 - `docs/local-store.js`: atomic device-local IndexedDB transactions.
+- `docs/peer-sync.js`: manual WebRTC pairing and bounded project, activity,
+  configuration, and chat packets.
+- `docs/experimenter.html`, `experimenter.js`, `experimenter-store.js`,
+  `experimenter.css`, `experimenter-team.css`: multi-team roster, WebRTC hub,
+  collection, channel relay, persistence, and exports.
 - `docs/service-worker.js`: browser-local compatibility adapter for
   `/exper/session/`, `/repo/vehicle/`, and `/repo/datalog/`.
 - `docs/Build/`: original Unity WebGL build, unchanged.
 
 The apparent legacy Unity API URLs are handled inside the browser and do not
-reach the static host. There is no application backend. Collaboration, AI
-services, and experiment administration remain outside this version.
+reach the static host. There is no application backend. Persistent hosted rooms,
+automatic signaling, TURN relay, automatic multi-user project merging, AI
+services, and server-managed experiment administration remain outside this
+version.
 
 ## Validation
 
 ```sh
-node --test tests/project.test.cjs tests/service-worker.test.cjs tests/static.test.cjs
+node --test tests/project.test.cjs tests/service-worker.test.cjs tests/static.test.cjs tests/peer-sync.test.cjs
 ```
 
 The automated suite covers legacy version 1 project compatibility, market/plan
-round trips, local scenario and plan endpoint behavior, evaluation-state shell
-hooks, portable local assets, and hashes for every original compiled asset.
+round trips, local scenario and plan endpoint behavior, WebRTC code/message
+validation, evaluation-state shell hooks, portable local assets, and hashes for
+every original compiled asset.
 
 Browser verification on 2026-11-19 (Chromium / Codex in-app browser):
 
@@ -146,11 +218,20 @@ Browser verification on 2026-11-19 (Chromium / Codex in-app browser):
 6. Evaluated the restored 6 lb drone: 9.30 mi, 19.67 mph, $3,470. Network
    inspection confirmed legacy data responses came from the compatibility bridge.
 7. Entered and exited full-screen mode; checked the full-window layout and drawers.
+8. In separate headless Chrome profiles, created two teams, paired two live
+   participants concurrently, and confirmed each received only their team,
+   position, announcement, and direct-help channels.
+9. Sent an Alpha Session message in both directions and confirmed it did not
+   appear in Beta; reloaded the experimenter and confirmed teams, assignments,
+   captured project, and channel history persisted while connections correctly
+   returned to disconnected.
+10. Confirmed an automatic project request collected nothing before consent,
+    then enabled collection for one participant and received a validated snapshot.
 
-The 2026-11-19 evaluation-interface, Operations, and Business release was also
-checked with the automated suite and a local HTTP server. Browser computer-use
-was unavailable on the release workstation, so the new end-to-end visual flows
-were not falsely recorded as browser-verified here.
+The two-process loopback WebRTC check disabled Chrome's local-IP mDNS
+obfuscation because the headless test processes could not resolve each other's
+generated `.local` names. The application code and production browser defaults
+were not changed for the test.
 
 The retained Unity runtime emits an old Emscripten warning about its fixed 30 fps
 loop and occasionally overlapping filesystem synchronization. These did not

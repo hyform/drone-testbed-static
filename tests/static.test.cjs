@@ -5,7 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const root = path.resolve(__dirname, '..');
 test('all locally linked page assets are included in the portable release', () => {
-  for (const file of ['index.html', 'designer.html', 'ops.html', 'business.html', 'about.html']) {
+  for (const file of ['index.html', 'designer.html', 'ops.html', 'business.html', 'experimenter.html', 'about.html']) {
     const html = fs.readFileSync(path.join(root, 'docs', file), 'utf8');
     for (const match of html.matchAll(/(?:src|href)="(\.\/[^"?#]+)"/g)) assert.ok(fs.existsSync(path.join(root, 'docs', match[1])), `${file}: missing ${match[1]}`);
     assert.doesNotMatch(html, /<script[^>]+src="https?:/);
@@ -39,6 +39,29 @@ test('each workspace exposes local save feedback and a contextual workflow hando
   assert.match(app, /Open Operations/);
   assert.match(app, /Open Business/);
   assert.match(app, /event\.key === 'Escape'/);
+});
+test('individual mode is independent and experimenter collection is explicit', () => {
+  const experimenter = fs.readFileSync(path.join(root, 'docs/experimenter.html'), 'utf8');
+  const experimenterApp = fs.readFileSync(path.join(root, 'docs/experimenter.js'), 'utf8');
+  for (const file of ['designer.html', 'ops.html', 'business.html']) {
+    const html = fs.readFileSync(path.join(root, 'docs', file), 'utf8');
+    assert.match(html, /id="peer-toggle"/);
+    assert.match(html, /id="peer-allow-collection" type="checkbox"/);
+    assert.doesNotMatch(html, /peer-allow-collection" type="checkbox" checked/);
+  }
+  assert.match(experimenter, /id="member-template"/);
+  assert.match(experimenter, /id="add-team-form"/);
+  assert.match(experimenter, /id="chat-channel"/);
+  assert.match(experimenter, /class="member-team"/);
+  assert.match(experimenter, /class="member-role"/);
+  assert.match(experimenter, /Create offer/);
+  assert.match(experimenterApp, /requestProject\(\)/);
+  assert.match(experimenterApp, /hyform-experiment-data/);
+  assert.match(experimenterApp, /hyform-team-experiment-data/);
+  assert.match(experimenterApp, /All participants · Announcements/);
+  assert.match(experimenterApp, /Session/);
+  assert.match(experimenterApp, /Help ·/);
+  assert.match(experimenterApp, /channelRecipients/);
 });
 test('the original compiled simulator is unchanged', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'upstream-assets.json')));

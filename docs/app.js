@@ -3,7 +3,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const scene = document.body.dataset.scene || 'design';
-  let game, ready = false, starting = false, project, refreshTimer, toastTimer, nameSaveTimer, evaluationPhase = 'design';
+  let game, ready = false, starting = false, peerConnected = false, collectionEnabled = false, project, peer, incomingProject, participantConfig, refreshTimer, peerSendTimer, toastTimer, nameSaveTimer, evaluationPhase = 'design';
+  const chatMessages = [];
   const buttons = ['new-project', 'load-project', 'save-project'];
   const sceneNames = { design: 'designer and flight simulator', ops: 'operations planner', business: 'business planner' };
 
@@ -129,14 +130,107 @@
       } catch (error) { failure(error); }
     }, 500);
   }
+  function peerStatus(message, state = '') {
+    $('peer-status').textContent = message; $('peer-status').dataset.state = state;
+  }
+  function peerState(next) {
+    const messages = {
+      gathering: 'Finding a direct route between browsers…',
+      'offer-ready': 'Offer ready. Send My code, then paste the answer you receive.',
+      'answer-ready': 'Answer ready. Send My code back to the browser that created the offer.',
+      connecting: 'Connecting directly…', connected: 'Connected directly',
+      disconnected: 'The direct connection was interrupted.', failed: 'Could not establish a direct connection.', closed: 'Not connected'
+    };
+    peerStatus(messages[next] || 'Preparing direct connection…', next);
+    const connected = next === 'connected';
+    peerConnected = connected;
+    if (!connected && next !== 'connecting') collectionEnabled = false;
+    $('peer-setup').hidden = connected; $('peer-connected').hidden = !connected;
+    $('peer-toggle').textContent = connected ? 'Connected' : 'Connect';
+    $('peer-toggle').dataset.connected = connected ? 'true' : 'false';
+    if (!connected && ['disconnected', 'failed', 'closed'].includes(next)) {
+      $('chat-status').textContent = 'Experimenter connection ended. Reconnect to send or receive chat.';
+      $('participant-channel').disabled = true; $('participant-message').disabled = true; $('participant-chat-form').querySelector('button').disabled = true;
+    } else if (connected && !participantConfig) $('chat-status').textContent = 'Connected. Waiting for the experimenter’s channel setup…';
+  }
+  function peerError(error) {
+    peerStatus(error.message || String(error), 'error'); status(error.message || String(error), true);
+  }
+  function ensurePeer() {
+    if (peer) return peer;
+    peer = HyformPeer.create({
+      onState: peerState,
+      onError: peerError,
+      onConfig: value => {
+        participantConfig = { member: value.member, channels: value.channels };
+        const select = $('participant-channel'); select.replaceChildren();
+        for (const channel of value.channels) {
+          const option = document.createElement('option'); option.value = channel.id; option.textContent = channel.label; select.append(option);
+        }
+        select.disabled = false; $('participant-message').disabled = false; $('participant-chat-form').querySelector('button').disabled = false;
+        $('chat-status').textContent = value.member.name + ' · ' + value.member.teamName + ' · ' + value.member.role;
+        renderParticipantChat();
+      },
+      onChat: message => {
+        if (!participantConfig?.channels.some(channel => channel.id === message.channel)) return;
+        chatMessages.push(message); if (chatMessages.length > 1000) chatMessages.shift();
+        if ($('chat-panel').hidden || $('participant-channel').value !== message.channel) $('chat-toggle').dataset.unread = 'true';
+        renderParticipantChat();
+      },
+      onProjectRequest: async () => {
+        try {
+          if (!$('peer-allow-collection').checked) {
+            peerStatus('The experimenter requested data. Enable experimenter data collection, then ask them to request again.', 'received');
+            return;
+          }
+          collectionEnabled = true;
+          peer.sendProject(HyformProject.validateProject(await HyformStore.read()));
+          peerStatus('Experimenter data collection is active for this connection.', 'connected');
+        } catch (error) { peerError(error); }
+      },
+      onProject: value => {
+        try {
+          incomingProject = HyformProject.validateProject(value);
+          $('peer-incoming-name').textContent = incomingProject.name;
+          $('peer-incoming-summary').textContent = incomingProject.vehicles.length.toLocaleString() + ' saved design' + (incomingProject.vehicles.length === 1 ? '' : 's') + ' · ' + incomingProject.plans.length.toLocaleString() + ' submitted plan' + (incomingProject.plans.length === 1 ? '' : 's');
+          $('peer-incoming').hidden = false; panel('peer-panel', true);
+          peerStatus('Project received. Review it before replacing your local project.', 'received');
+        } catch (error) { peerError(new Error('The incoming project was rejected: ' + error.message)); }
+      }
+    });
+    return peer;
+  }
+  function renderParticipantChat() {
+    const list = $('participant-messages'), channel = $('participant-channel').value;
+    list.replaceChildren();
+    const visible = chatMessages.filter(message => message.channel === channel);
+    if (!visible.length) {
+      const empty = document.createElement('li'); empty.className = 'chat-empty'; empty.textContent = 'No messages in this channel yet.'; list.append(empty); return;
+    }
+    for (const message of visible) {
+      const item = document.createElement('li');
+      if (message.senderId === participantConfig?.member.id) item.className = 'participant-message-own';
+      const meta = document.createElement('span'); meta.className = 'participant-message-meta'; meta.textContent = message.senderName + ' · ' + new Date(message.sentAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const body = document.createElement('span'); body.className = 'participant-message-body'; body.textContent = message.body;
+      item.append(meta, body); list.append(item);
+    }
+    list.scrollTop = list.scrollHeight;
+  }
+  function resetParticipantChat() {
+    participantConfig = null; chatMessages.length = 0;
+    $('participant-channel').replaceChildren(new Option('No channels'));
+    $('participant-channel').disabled = true; $('participant-message').disabled = true; $('participant-chat-form').querySelector('button').disabled = true;
+    $('chat-status').textContent = 'Waiting for an experimenter connection.'; $('chat-toggle').dataset.unread = 'false'; renderParticipantChat();
+  }
   function panel(id, open, manageFocus = true) {
     const selected = $(id), wasOpen = !selected.hidden;
-    for (const other of ['help', 'project-panel']) {
+    const toggles = { help: 'help-toggle', 'project-panel': 'project-toggle', 'peer-panel': 'peer-toggle', 'chat-panel': 'chat-toggle' };
+    for (const other of Object.keys(toggles)) {
       const expanded = other === id && open; $(other).hidden = !expanded;
-      $(other === 'help' ? 'help-toggle' : 'project-toggle').setAttribute('aria-expanded', String(expanded));
+      $(toggles[other]).setAttribute('aria-expanded', String(expanded));
     }
     if (!manageFocus) return;
-    const toggle = $(id === 'help' ? 'help-toggle' : 'project-toggle');
+    const toggle = $(toggles[id]);
     if (open) requestAnimationFrame(() => selected.querySelector('button, a')?.focus());
     else if (wasOpen && document.activeElement?.closest('#' + id)) toggle.focus();
   }
@@ -144,6 +238,67 @@
   $('help-close').addEventListener('click', () => panel('help', false));
   $('project-toggle').addEventListener('click', () => panel('project-panel', $('project-panel').hidden));
   $('project-close').addEventListener('click', () => panel('project-panel', false));
+  $('peer-toggle').addEventListener('click', () => panel('peer-panel', $('peer-panel').hidden));
+  $('peer-close').addEventListener('click', () => panel('peer-panel', false));
+  $('chat-toggle').addEventListener('click', () => { const open = $('chat-panel').hidden; panel('chat-panel', open); if (open) $('chat-toggle').dataset.unread = 'false'; });
+  $('chat-close').addEventListener('click', () => panel('chat-panel', false));
+  $('participant-channel').addEventListener('change', () => { $('chat-toggle').dataset.unread = 'false'; renderParticipantChat(); });
+  $('participant-chat-form').addEventListener('submit', event => {
+    event.preventDefault();
+    try {
+      const body = $('participant-message').value.trim(); if (!body || !participantConfig) return;
+      ensurePeer().sendChat({ id: crypto.randomUUID(), channel: $('participant-channel').value, senderId: participantConfig.member.id, senderName: participantConfig.member.name, body });
+      $('participant-message').value = '';
+    } catch (error) { peerError(error); }
+  });
+  $('peer-create-offer').addEventListener('click', async () => {
+    try {
+      resetParticipantChat();
+      peerStatus('Creating an offer…', 'working');
+      $('peer-local-code').value = await ensurePeer().createOffer();
+      $('peer-copy').disabled = false; $('peer-local-code').focus(); $('peer-local-code').select();
+    } catch (error) { peerError(error); }
+  });
+  $('peer-answer').addEventListener('click', async () => {
+    try {
+      resetParticipantChat();
+      peerStatus('Creating an answer…', 'working');
+      $('peer-local-code').value = await ensurePeer().answerOffer($('peer-remote-code').value);
+      $('peer-copy').disabled = false; $('peer-local-code').focus(); $('peer-local-code').select();
+    } catch (error) { peerError(error); }
+  });
+  $('peer-accept').addEventListener('click', async () => {
+    try { await ensurePeer().acceptAnswer($('peer-remote-code').value); }
+    catch (error) { peerError(error); }
+  });
+  $('peer-copy').addEventListener('click', async () => {
+    try {
+      if (!$('peer-local-code').value) throw new Error('Create a connection code first.');
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText($('peer-local-code').value);
+      else { $('peer-local-code').focus(); $('peer-local-code').select(); if (!document.execCommand('copy')) throw new Error('Copy the selected code manually.'); }
+      peerStatus('My code was copied. Send it to the other person.', 'ready');
+    } catch (error) { peerError(error); }
+  });
+  $('peer-send').addEventListener('click', async () => {
+    try {
+      await saveName();
+      ensurePeer().sendProject(HyformProject.validateProject(await HyformStore.read()));
+      peerStatus('Current project sent directly.', 'connected'); status('Project sent directly to the connected browser.');
+    } catch (error) { peerError(error); }
+  });
+  $('peer-disconnect').addEventListener('click', () => { if (peer) peer.close(); peer = null; });
+  $('peer-allow-collection').addEventListener('change', event => {
+    if (!event.target.checked) {
+      collectionEnabled = false;
+      if (peerConnected) peerStatus('Experimenter data collection is paused. Individual mode remains active.', 'connected');
+    } else if (peerConnected) peerStatus('Collection permission enabled. The experimenter can now request the project.', 'connected');
+  });
+  $('peer-dismiss').addEventListener('click', () => { incomingProject = null; $('peer-incoming').hidden = true; });
+  $('peer-apply').addEventListener('click', async () => {
+    if (!incomingProject) return;
+    if (!await confirmChange('Replace your project with “' + incomingProject.name + '”?', 'Save your current project file first if you want to keep a separate copy. Applying the incoming project ends this direct connection.')) return;
+    await HyformStore.update(() => incomingProject); location.reload();
+  });
   $('fullscreen-toggle').addEventListener('click', async () => {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
     catch (_) { status('Full screen is unavailable in this browser window. The workspace already fills the available space.'); }
@@ -171,7 +326,7 @@
   // Prevent the legacy Unity runtime from consuming keys meant for HTML controls.
   for (const type of ['keydown', 'keyup', 'keypress']) window.addEventListener(type, event => {
     if (type === 'keydown' && event.key === 'Escape' && !$('confirmation').open) {
-      const openPanel = ['help', 'project-panel'].find(id => !$(id).hidden);
+      const openPanel = ['help', 'project-panel', 'peer-panel', 'chat-panel'].find(id => !$(id).hidden);
       if (openPanel) { event.preventDefault(); event.stopImmediatePropagation(); panel(openPanel, false); return; }
     }
     if (event.target.closest?.('input,button,a,dialog')) event.stopImmediatePropagation();
@@ -242,6 +397,14 @@
             if (action.startsWith('designer;Evaluated;')) setEvaluationPhase('results');
             else if (action.startsWith('designer;Evaluate;')) setEvaluationPhase('running');
             else if (action === 'designer;DesignMode') setEvaluationPhase('design');
+          }
+          if (peerConnected && collectionEnabled) {
+            try { if (action) peer.sendActivity(action, scene); } catch (error) { peerError(error); }
+            clearTimeout(peerSendTimer);
+            peerSendTimer = setTimeout(async () => {
+              try { peer.sendProject(HyformProject.validateProject(await HyformStore.read())); }
+              catch (error) { peerError(error); }
+            }, 400);
           }
           queueRefresh();
         }

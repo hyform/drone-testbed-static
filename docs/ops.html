@@ -1,14 +1,14 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#142d3a"><title>HyForm · Operations</title>
-<link rel="stylesheet" href="./app.css"><link rel="stylesheet" href="./studio.css">
-<script src="./project-model.js" defer></script><script src="./local-store.js" defer></script><script src="./Build/UnityLoader.js" defer></script><script src="./app.js" defer></script>
+<link rel="stylesheet" href="./app.css"><link rel="stylesheet" href="./studio.css"><link rel="stylesheet" href="./peer-chat.css">
+<script src="./project-model.js" defer></script><script src="./local-store.js" defer></script><script src="./peer-sync.js" defer></script><script src="./Build/UnityLoader.js" defer></script><script src="./app.js" defer></script>
 <link rel="icon" href="./favicon.svg" type="image/svg+xml"></head><body class="designer-page" data-scene="ops">
 <header class="toolbar" aria-label="Project tools">
 <a class="wordmark" href="./index.html" aria-label="HyForm home">HyForm<span>™</span></a>
 <nav class="mode-nav" aria-label="HyForm tools"><a href="./designer.html">Design</a><a href="./ops.html" aria-current="page">Operations</a><a href="./business.html">Business</a></nav>
 <input id="project-name" value="Untitled project" maxlength="120" aria-label="Project name" title="Project name"><span id="save-state" class="save-state" role="status" aria-live="polite" aria-atomic="true">Opening project…</span><span class="toolbar-spacer"></span>
 <button id="new-project" disabled>New</button><button id="load-project" disabled>Open file</button><button id="save-project" class="primary" disabled>Save file</button><span class="toolbar-divider"></span>
-<button id="project-toggle" aria-expanded="false" aria-controls="project-panel">Project</button><button id="help-toggle" aria-expanded="false" aria-controls="help">Help</button><button id="fullscreen-toggle">Full screen</button>
+<button id="peer-toggle" aria-expanded="false" aria-controls="peer-panel">Connect</button><button id="chat-toggle" aria-expanded="false" aria-controls="chat-panel">Chat</button><button id="project-toggle" aria-expanded="false" aria-controls="project-panel">Project</button><button id="help-toggle" aria-expanded="false" aria-controls="help">Help</button><button id="fullscreen-toggle">Full screen</button>
 <input id="project-file" type="file" accept=".json,.hyform.json,application/json" hidden>
 </header>
 <main class="designer-main" aria-label="Delivery operations workspace">
@@ -19,6 +19,15 @@
 <div class="workflow-card" id="workflow-card"><span id="workflow-kicker">DESIGN NEEDED</span><strong id="workflow-title">Save a successful drone first</strong><p id="workflow-message">Operations needs a submitted design before route planning.</p><a id="workflow-link" href="./designer.html">Open Design</a></div>
 <p class="storage-note">Operations uses the named designs and market scenario in this project. Changes are autosaved in this browser; save a project file for a durable copy.</p>
 </section>
+<section class="drawer peer-panel" id="peer-panel" aria-label="Direct project connection" hidden>
+<div class="drawer-heading"><h2>Connect two browsers</h2><button id="peer-close" aria-label="Close direct connection">Close</button></div>
+<p>Exchange connection codes with someone you trust, then send a project directly between browsers.</p><p id="peer-status" class="peer-status" role="status" aria-live="polite">Not connected</p>
+<div id="peer-setup"><h3>Start on one browser</h3><button id="peer-create-offer" class="primary">Create offer</button><h3>Exchange connection codes</h3><label for="peer-local-code">My code</label><textarea id="peer-local-code" rows="4" readonly spellcheck="false" aria-describedby="peer-code-note"></textarea><button id="peer-copy" disabled>Copy my code</button><label for="peer-remote-code">Code from the other browser</label><textarea id="peer-remote-code" rows="4" spellcheck="false"></textarea><div class="peer-actions"><button id="peer-answer">Answer pasted offer</button><button id="peer-accept">Use pasted answer</button></div><p id="peer-code-note" class="field-note">Offer → answer → connect. Codes contain connection details, not project data.</p></div>
+<label class="consent-option"><input id="peer-allow-collection" type="checkbox"> Allow experimenter data collection during this connection</label><div id="peer-connected" hidden><button id="peer-send" class="primary">Send current project</button><button id="peer-disconnect">Disconnect</button></div>
+<div id="peer-incoming" class="incoming-project" hidden><span>INCOMING PROJECT</span><strong id="peer-incoming-name"></strong><p id="peer-incoming-summary"></p><div class="peer-actions"><button id="peer-apply" class="primary">Replace my project</button><button id="peer-dismiss">Not now</button></div></div>
+<p class="storage-note">Project data travels over WebRTC’s encrypted peer connection and is not uploaded by HyForm. Replacing the local project reloads this page and ends the connection. Some restricted networks may block direct connections.</p>
+</section>
+<section class="drawer chat-panel" id="chat-panel" aria-label="Session chat" hidden><div class="drawer-heading"><h2>Session chat</h2><button id="chat-close" aria-label="Close session chat">Close</button></div><p id="chat-status">Connect to an experimenter to join channels.</p><label for="participant-channel">Channel</label><select id="participant-channel" disabled><option>No channels</option></select><ol id="participant-messages" class="participant-messages"><li class="chat-empty">Messages appear here during this connection.</li></ol><form id="participant-chat-form"><label for="participant-message">Message</label><textarea id="participant-message" rows="3" maxlength="4000" disabled></textarea><button class="primary" disabled>Send</button></form><p class="storage-note">Chat is relayed through the connected experimenter browser. It is available only while that peer connection is active.</p></section>
 <section class="drawer" id="help" aria-label="Operations help" hidden>
 <div class="drawer-heading"><h2>Plan delivery routes.</h2><button id="help-close" aria-label="Close help">Close</button></div>
 <h3>Start with a design</h3><p>Evaluate a drone in Design and submit a successful flight to add it to the saved design list used here.</p>
