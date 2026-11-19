@@ -1,13 +1,8 @@
 /* Adapts the original Unity client's data requests to device-local storage. */
 importScripts('./market-data.js', './project-model.js', './local-store.js');
-const CACHE = 'hyform-static-6';
-const ASSETS = ['./', './index.html', './designer.html', './ops.html', './business.html', './about.html', './LICENSE.txt', './favicon.svg', './app.css', './studio.css', './landing.css', './app.js', './market-data.js', './project-model.js', './local-store.js', './Build/UnityLoader.js', './Build/webgl.json', './Build/webgl.data.unityweb', './Build/webgl.wasm.code.unityweb', './Build/webgl.wasm.framework.unityweb'];
-self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
-});
-self.addEventListener('activate', event => event.waitUntil(
-  caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('hyform-static-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())
-));
+const BRIDGE_VERSION = 1;
+self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 async function announce(type, extra = {}) {
   for (const client of await self.clients.matchAll()) client.postMessage({ type, ...extra });
 }
@@ -147,24 +142,5 @@ self.addEventListener('fetch', event => {
   if (/^\/(repo|exper|ai)\//.test(url.pathname)) {
     event.respondWith(localRequest(event.request, url.pathname).catch(error => json({ detail: error.message }, 400)));
     return;
-  }
-  if (event.request.method === 'GET') {
-    if (url.pathname.includes('/Build/')) {
-      event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
-    } else {
-      // Keep releases fresh while allowing a previously loaded studio to work offline.
-      event.respondWith(fetch(event.request).then(response => {
-        if (response.ok) { const copy = response.clone(); caches.open(CACHE).then(cache => cache.put(event.request, copy)); }
-        return response;
-      }).catch(async () => {
-        const cached = await caches.match(event.request);
-        if (cached) return cached;
-        if (event.request.mode !== 'navigate') return Response.error();
-        const page = url.pathname.endsWith('designer.html') ? './designer.html'
-          : url.pathname.endsWith('ops.html') ? './ops.html'
-          : url.pathname.endsWith('business.html') ? './business.html' : './index.html';
-        return caches.match(page);
-      }));
-    }
   }
 });

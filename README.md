@@ -12,13 +12,14 @@ full-viewport workspaces with a shared project/file toolbar and optional panels:
 - `business.html`: market selection and submitted-plan comparison.
 
 The original Unity WebGL application, flight physics, and planning calculations are reused without
-modifying or rebuilding the compiled engine. No application backend, account,
-database service, paid API, or package installation is needed to run the app.
+modifying or rebuilding the compiled engine. The live app still runs without an
+account, while `backend/` now provides the production-oriented API foundation for
+durable cross-device storage. No package installation is needed for either runtime.
 
 ## Run or deploy
 
 Serve the contents of `docs/` from any ordinary HTTPS static host. The bundle is
-about 16 MB. A service worker requires HTTPS, or localhost for development.
+about 16 MB. Its compatibility service worker requires HTTPS, or localhost for development.
 Opening `index.html` directly as a file is not supported.
 
 For local development:
@@ -75,6 +76,11 @@ verdict or controls. Returning to design reloads the autosaved draft into a clea
 design scene; it is offered only after the simulator records that evaluation has
 ended.
 
+The shared toolbar distinguishes browser autosave from the downloadable project
+file with a persistent local-save state. Each Project drawer also shows the next
+available workflow handoff based on the saved designs and submitted plans, while
+keeping Design, Operations, and Business directly reachable from the mode bar.
+
 ## Operations and business planning
 
 The compiled WebGL bundle already includes the original `plan_tool` scene. The
@@ -97,8 +103,9 @@ route edits that have not been submitted are not restored after a reload.
 
 Browser autosave uses IndexedDB. It is a convenience, not a backup: clearing
 site data removes it. Download project files for durable storage and sharing.
-After the first successful load, the cached studio, file controls, and local
-evaluation also work without a network connection.
+The application is online-first and does not precache its 16 MB Unity runtime
+for offline use. The service worker exists only to bridge the compiled client’s
+legacy API-shaped requests to the selected storage implementation.
 
 ## Architecture
 
@@ -108,18 +115,34 @@ evaluation also work without a network connection.
 - `docs/market-data.js`: canonical Market 1 data from the original release.
 - `docs/project-model.js`: versioned format, validation, and activity parsing.
 - `docs/local-store.js`: atomic device-local IndexedDB transactions.
-- `docs/service-worker.js`: cache and browser-local compatibility adapter for
+- `docs/service-worker.js`: browser-local compatibility adapter for
   `/exper/session/`, `/repo/vehicle/`, and `/repo/datalog/`.
 - `docs/Build/`: original Unity WebGL build, unchanged.
 
-The apparent legacy API URLs are handled inside the browser. They do not reach
-the static host. There is no server implementation of these routes. Collaboration,
-AI services, and experiment administration are outside this first version.
+The apparent legacy Unity API URLs are handled inside the browser and do not
+reach the static host. They are separate from the project snapshot API below.
+Collaboration, AI services, and experiment administration remain outside this
+version.
+
+## Optional backend foundation
+
+`backend/` contains a zero-runtime-dependency Cloudflare Worker and D1 schema for
+validated cross-device project snapshots. It is additive: the deployed GitHub
+Pages application still uses local IndexedDB and project files, and does not send
+project data anywhere. The API supports health checks, protected snapshot
+creation, public snapshot reads, edit-token updates, ETags, strict origin and
+payload checks, and optimistic conflict handling.
+
+Project creation is disabled unless the server has an encrypted
+`CREATE_ACCESS_KEY`; that key is never committed or embedded in the public app.
+The backend is not wired into the live UI until a production endpoint, identity
+or cohort-access model, retention policy, and abuse controls are selected. See
+`backend/README.md` for the deployment contract.
 
 ## Validation
 
 ```sh
-node --test tests/project.test.cjs tests/service-worker.test.cjs tests/static.test.cjs
+node --test tests/project.test.cjs tests/service-worker.test.cjs tests/static.test.cjs tests/backend.test.mjs
 ```
 
 The automated suite covers legacy version 1 project compatibility, market/plan
@@ -137,10 +160,8 @@ Browser verification on 2026-11-19 (Chromium / Codex in-app browser):
    restored 6 lb and the existing library/previous evaluation.
 5. Imported an unsupported format version; the UI rejected it and preserved the
    current project.
-6. Enabled offline mode and stopped the static preview host. Reloaded the cached
-   studio and evaluated the restored 6 lb drone: 9.30 mi, 19.67 mph, $3,470.
-   Network inspection confirmed legacy data responses came from the service
-   worker. No application server was running.
+6. Evaluated the restored 6 lb drone: 9.30 mi, 19.67 mph, $3,470. Network
+   inspection confirmed legacy data responses came from the compatibility bridge.
 7. Entered and exited full-screen mode; checked the full-window layout and drawers.
 
 The 2026-11-19 evaluation-interface, Operations, and Business release was also
@@ -156,10 +177,11 @@ narrow displays can pan horizontally through its minimum-width workspace.
 
 ## Maintenance
 
-There is no dependency installation or build step for deployment. Keep the
-release files and this source together. When changing cached files, increment
-`CACHE` in `service-worker.js`, then test a fresh install and an upgrade. The
-worker removes only this application's older named caches, never project data.
+There is no dependency installation or build step for the GitHub Pages frontend.
+Keep the release files and this source together. The service worker is network-only
+outside its legacy API bridge, so application updates do not require cache-version
+bookkeeping. Test both a fresh install and a service-worker upgrade after bridge
+changes.
 Keep the format version stable unless implementing an explicit migration.
 
 ## Provenance and license

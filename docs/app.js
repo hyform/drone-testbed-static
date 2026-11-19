@@ -3,13 +3,17 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const scene = document.body.dataset.scene || 'design';
-  let game, ready = false, starting = false, project, refreshTimer, toastTimer, evaluationPhase = 'design';
+  let game, ready = false, starting = false, project, refreshTimer, toastTimer, nameSaveTimer, evaluationPhase = 'design';
   const buttons = ['new-project', 'load-project', 'save-project'];
   const sceneNames = { design: 'designer and flight simulator', ops: 'operations planner', business: 'business planner' };
 
   function status(message, error = false) {
     clearTimeout(toastTimer); $('status').textContent = message; $('status').classList.toggle('error', error); $('status').classList.remove('quiet');
     if (!error && ready) toastTimer = setTimeout(() => $('status').classList.add('quiet'), 5500);
+  }
+  function saveState(message, state = 'saved') {
+    const element = $('save-state'); if (!element) return;
+    element.textContent = message; element.dataset.state = state;
   }
   function failure(error) {
     $('loading').hidden = false; $('loading').classList.add('error');
@@ -28,7 +32,7 @@
     $('evaluation-dock').hidden = !active;
     document.querySelector('.designer-main').classList.toggle('evaluation-active', active);
     if (!active) return;
-    panel('project-panel', false);
+    panel('project-panel', false, false);
     const complete = next === 'results';
     $('evaluation-title').textContent = complete ? 'Flight metrics' : 'Running flight evaluation';
     $('evaluation-message').textContent = complete
@@ -43,6 +47,7 @@
     if (document.activeElement !== $('project-name')) $('project-name').value = project.name;
     if ($('design-count')) $('design-count').textContent = project.vehicles.length.toLocaleString();
     if ($('plan-count')) $('plan-count').textContent = project.plans.length.toLocaleString();
+    updateWorkflow();
     const result = project.lastEvaluation;
     if (result) {
       const current = result.config === project.draftConfig;
@@ -62,7 +67,45 @@
         });
         $('library').append(button);
       }
+      if ($('library-empty')) $('library-empty').hidden = project.vehicles.length !== 0;
     }
+  }
+  function updateWorkflow() {
+    if (!$('workflow-card')) return;
+    const designs = project.vehicles.length, plans = project.plans.length;
+    let kicker, title, message, href, action;
+    if (scene === 'design' && designs === 0) {
+      kicker = 'START HERE'; title = 'Submit a flight-ready design';
+      message = 'Evaluate a design, then submit a successful flight to make that drone available for route planning.';
+      href = '#help'; action = 'Open design help';
+    } else if (scene === 'design') {
+      kicker = 'NEXT STEP'; title = 'Plan delivery routes';
+      message = designs.toLocaleString() + (designs === 1 ? ' saved design is' : ' saved designs are') + ' ready in Operations.';
+      href = './ops.html'; action = 'Open Operations';
+    } else if (scene === 'ops' && designs === 0) {
+      kicker = 'DESIGN NEEDED'; title = 'Save a successful drone first';
+      message = 'Operations needs at least one submitted design before you can assign a vehicle to a route.';
+      href = './designer.html'; action = 'Open Design';
+    } else if (scene === 'ops' && plans === 0) {
+      kicker = 'CURRENT STEP'; title = 'Build and submit a route plan';
+      message = designs.toLocaleString() + (designs === 1 ? ' design is' : ' designs are') + ' ready. Assign customers, check the constraints, and submit the plan.';
+      href = '#help'; action = 'Open operations help';
+    } else if (scene === 'ops') {
+      kicker = 'NEXT STEP'; title = 'Compare business outcomes';
+      message = plans.toLocaleString() + (plans === 1 ? ' submitted plan is' : ' submitted plans are') + ' ready in Business.';
+      href = './business.html'; action = 'Open Business';
+    } else if (plans === 0) {
+      kicker = 'PLAN NEEDED'; title = 'Submit an operations plan first';
+      message = 'Business can compare delivery, cost, and profit outcomes after a route plan has been submitted.';
+      href = './ops.html'; action = 'Open Operations';
+    } else {
+      kicker = 'READY TO COMPARE'; title = plans.toLocaleString() + (plans === 1 ? ' submitted plan' : ' submitted plans');
+      message = 'Select plans in the original HyForm business view to compare delivery, cost, and profit outcomes.';
+      href = '#help'; action = 'Open business help';
+    }
+    $('workflow-kicker').textContent = kicker; $('workflow-title').textContent = title;
+    $('workflow-message').textContent = message; $('workflow-link').textContent = action;
+    $('workflow-link').setAttribute('href', href);
   }
   function queueRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => refresh().catch(failure), 120); }
   function confirmChange(title, message) {
@@ -77,7 +120,7 @@
       try {
         project = await HyformStore.read();
         if (scene === 'design' && project.draftConfig !== HyformProject.BASE_CONFIG) game.SendMessage('GUI', 'fromstring', project.draftConfig);
-        ready = true; $('loading').hidden = true;
+        ready = true; $('loading').hidden = true; saveState('Saved locally');
         buttons.forEach(id => $(id).disabled = false);
         await refresh();
         if (scene === 'design') status('Ready · changes are autosaved in this browser. Save a project file for a durable copy.');
@@ -86,11 +129,16 @@
       } catch (error) { failure(error); }
     }, 500);
   }
-  function panel(id, open) {
+  function panel(id, open, manageFocus = true) {
+    const selected = $(id), wasOpen = !selected.hidden;
     for (const other of ['help', 'project-panel']) {
       const expanded = other === id && open; $(other).hidden = !expanded;
       $(other === 'help' ? 'help-toggle' : 'project-toggle').setAttribute('aria-expanded', String(expanded));
     }
+    if (!manageFocus) return;
+    const toggle = $(id === 'help' ? 'help-toggle' : 'project-toggle');
+    if (open) requestAnimationFrame(() => selected.querySelector('button, a')?.focus());
+    else if (wasOpen && document.activeElement?.closest('#' + id)) toggle.focus();
   }
   $('help-toggle').addEventListener('click', () => panel('help', $('help').hidden));
   $('help-close').addEventListener('click', () => panel('help', false));
@@ -102,13 +150,30 @@
   });
   document.addEventListener('fullscreenchange', () => $('fullscreen-toggle').textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen');
   async function saveName() {
+    clearTimeout(nameSaveTimer); nameSaveTimer = null; saveState('Saving…', 'saving');
     const name = $('project-name').value.trim() || 'Untitled project';
-    await HyformStore.update(p => { p.name = name; p.updatedAt = new Date().toISOString(); return p; });
-    return name;
+    try {
+      await HyformStore.update(p => { p.name = name; p.updatedAt = new Date().toISOString(); return p; });
+      if (!$('project-name').value.trim()) $('project-name').value = name;
+      saveState('Saved locally'); return name;
+    } catch (error) { saveState('Save failed', 'error'); throw error; }
   }
-  $('project-name').addEventListener('input', () => saveName().catch(error => status(error.message, true)));
+  function scheduleNameSave() {
+    clearTimeout(nameSaveTimer); saveState('Saving…', 'saving');
+    nameSaveTimer = setTimeout(() => saveName().catch(error => status(error.message, true)), 350);
+  }
+  $('project-name').addEventListener('input', scheduleNameSave);
+  $('project-name').addEventListener('blur', () => { if (nameSaveTimer) saveName().catch(error => status(error.message, true)); });
+  $('workflow-link').addEventListener('click', event => {
+    if ($('workflow-link').getAttribute('href') !== '#help') return;
+    event.preventDefault(); panel('help', true);
+  });
   // Prevent the legacy Unity runtime from consuming keys meant for HTML controls.
   for (const type of ['keydown', 'keyup', 'keypress']) window.addEventListener(type, event => {
+    if (type === 'keydown' && event.key === 'Escape' && !$('confirmation').open) {
+      const openPanel = ['help', 'project-panel'].find(id => !$(id).hidden);
+      if (openPanel) { event.preventDefault(); event.stopImmediatePropagation(); panel(openPanel, false); return; }
+    }
     if (event.target.closest?.('input,button,a,dialog')) event.stopImmediatePropagation();
     if (type === 'keydown' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && ready) {
       event.preventDefault(); event.stopImmediatePropagation(); $('save-project').click();
@@ -171,6 +236,7 @@
       navigator.serviceWorker.addEventListener('message', event => {
         if (event.data.type === 'engine-started') engineStarted();
         else if (event.data.type === 'project-changed') {
+          saveState('Saved locally');
           const action = event.data.action || '';
           if (scene === 'design') {
             if (action.startsWith('designer;Evaluated;')) setEvaluationPhase('results');

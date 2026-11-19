@@ -1,0 +1,15 @@
+name = "hyform-projects"
+main = "worker.mjs"
+compatibility_date = "2026-11-19"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hyform-projects"
+database_id = "replace-with-cloudflare-d1-database-id"
+
+[vars]
+ALLOWED_ORIGINS = "https://hyform.github.io"
+MAX_PROJECT_BYTES = "5242880"
+
+# Configure CREATE_ACCESS_KEY as an encrypted Worker secret. Project creation is
+# disabled when it is absent; never commit its value or expose it in frontend code.

@@ -23,13 +23,22 @@ test('the wrapper exposes distinct local tools and a non-overlapping evaluation 
   assert.match(app, /designer;Evaluated;/);
   assert.doesNotMatch(app, /result\s*=\s*['"]Success/);
   assert.match(css, /\.designer-main\.evaluation-active \.canvas-wrap\{bottom:/);
-  assert.match(worker, /hyform-static-6/);
+  assert.match(worker, /BRIDGE_VERSION = 1/);
+  assert.doesNotMatch(worker, /caches\.(?:open|match|keys)/);
   for (const endpoint of ['/repo/scenario/', '/repo/planshort/', '/repo/plan/']) assert.ok(worker.includes(endpoint));
 });
-test('every service-worker release asset exists', () => {
-  const worker = fs.readFileSync(path.join(root, 'docs/service-worker.js'), 'utf8');
-  const assets = worker.match(/const ASSETS = \[(.*?)\];/s)[1].matchAll(/'\.\/([^']*)'/g);
-  for (const [, file] of assets) assert.ok(fs.existsSync(path.join(root, 'docs', file)), `missing cached asset: ${file}`);
+test('each workspace exposes local save feedback and a contextual workflow handoff', () => {
+  const app = fs.readFileSync(path.join(root, 'docs/app.js'), 'utf8');
+  for (const file of ['designer.html', 'ops.html', 'business.html']) {
+    const html = fs.readFileSync(path.join(root, 'docs', file), 'utf8');
+    assert.match(html, /id="save-state"[^>]+aria-live="polite"/);
+    assert.match(html, /id="workflow-card"/);
+    assert.match(html, /id="workflow-link"/);
+  }
+  assert.match(app, /Saved locally/);
+  assert.match(app, /Open Operations/);
+  assert.match(app, /Open Business/);
+  assert.match(app, /event\.key === 'Escape'/);
 });
 test('the original compiled simulator is unchanged', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'upstream-assets.json')));

@@ -6,7 +6,7 @@
 <header class="toolbar" aria-label="Project tools">
 <a class="wordmark" href="./index.html" aria-label="HyForm home">HyForm<span>™</span></a>
 <nav class="mode-nav" aria-label="HyForm tools"><a href="./designer.html" aria-current="page">Design</a><a href="./ops.html">Operations</a><a href="./business.html">Business</a></nav>
-<input id="project-name" value="Untitled project" maxlength="120" aria-label="Project name" title="Project name"><span class="toolbar-spacer"></span>
+<input id="project-name" value="Untitled project" maxlength="120" aria-label="Project name" title="Project name"><span id="save-state" class="save-state" role="status" aria-live="polite" aria-atomic="true">Opening project…</span><span class="toolbar-spacer"></span>
 <button id="new-project" disabled>New</button><button id="load-project" disabled>Open file</button><button id="save-project" class="primary" disabled>Save file</button><span class="toolbar-divider"></span>
 <button id="project-toggle" aria-expanded="false" aria-controls="project-panel">Project</button><button id="help-toggle" aria-expanded="false" aria-controls="help">Help</button><button id="fullscreen-toggle">Full screen</button>
 <input id="project-file" type="file" accept=".json,.hyform.json,application/json" hidden>
@@ -16,7 +16,8 @@
 <section class="drawer" id="project-panel" aria-label="Project details" hidden>
 <div class="drawer-heading"><h2>Your project</h2><button id="project-close" aria-label="Close project details">Close</button></div>
 <div class="project-stats"><div><span>Saved designs</span><strong id="design-count">0</strong></div><div><span>Saved plans</span><strong id="plan-count">0</strong></div></div>
-<h3>Design library</h3><div id="library"></div><p class="storage-note">Changes are autosaved in this browser. Save a project file for a durable copy or to move your work to another computer.</p>
+<div class="workflow-card" id="workflow-card"><span id="workflow-kicker">START HERE</span><strong id="workflow-title">Submit a flight-ready design</strong><p id="workflow-message">Evaluate and submit a successful flight to continue.</p><a id="workflow-link" href="#help">Open design help</a></div>
+<h3>Design library</h3><div id="library"></div><p id="library-empty" class="empty-state">No submitted designs yet. Successful submissions appear here and in Operations.</p><p class="storage-note">Changes are autosaved in this browser. Save a project file for a durable copy or to move your work to another computer.</p>
 </section>
 <section class="drawer" id="help" aria-label="Designer help" hidden>
 <div class="drawer-heading"><h2>Design, test, refine.</h2><button id="help-close" aria-label="Close help">Close</button></div>
