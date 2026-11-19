@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#142d3a"><title>HyForm · Designer</title>
+<link rel="stylesheet" href="./app.css"><link rel="stylesheet" href="./studio.css">
+<script src="./project-model.js" defer></script><script src="./local-store.js" defer></script><script src="./Build/UnityLoader.js" defer></script><script src="./app.js" defer></script>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml"></head><body class="designer-page">
+<header class="toolbar" aria-label="Project tools">
+<a class="wordmark" href="./index.html" aria-label="HyForm home">HyForm<span>™</span></a>
+<input id="project-name" value="Untitled project" maxlength="120" aria-label="Project name" title="Project name"><span class="toolbar-spacer"></span>
+<button id="new-project" disabled>New</button><button id="load-project" disabled>Open file</button><button id="save-project" class="primary" disabled>Save file</button><span class="toolbar-divider"></span>
+<button id="project-toggle" aria-expanded="false" aria-controls="project-panel">Project</button><button id="help-toggle" aria-expanded="false" aria-controls="help">Help</button><button id="fullscreen-toggle">Full screen</button>
+<input id="project-file" type="file" accept=".json,.hyform.json,application/json" hidden>
+</header>
+<main class="designer-main" aria-label="Drone design workspace">
+<div class="canvas-wrap"><div id="gameContainer" aria-label="Interactive drone designer"></div><div id="loading" role="status"><span class="loader-mark">H</span><h2>Opening your design studio</h2><p id="loading-message">Opening local project storage…</p><progress id="progress" max="1" value="0"></progress></div></div>
+<section class="drawer" id="project-panel" aria-label="Project details" hidden>
+<div class="drawer-heading"><h2>Your project</h2><button id="project-close" aria-label="Close project details">Close</button></div>
+<p id="design-count">0 library designs</p><h3>Latest evaluation</h3><p id="evaluation-state">Evaluate a design to see its flight performance.</p>
+<div class="metrics"><div><span>Range</span><strong id="range">—</strong></div><div><span>Payload</span><strong id="payload">—</strong></div><div><span>Vehicle cost</span><strong id="cost">—</strong></div><div><span>Velocity</span><strong id="velocity">—</strong></div></div>
+<h3>Design library</h3><div id="library"></div><p class="storage-note">Changes are autosaved in this browser. Save a project file for a durable copy or to move your work to another computer.</p>
+</section>
+<section class="drawer" id="help" aria-label="Designer help" hidden>
+<div class="drawer-heading"><h2>Design, test, refine.</h2><button id="help-close" aria-label="Close help">Close</button></div>
+<h3>Build a drone</h3><p>Click components to change their type. Drag the joint handles to extend the frame. Right-click or use the up/down keys to resize a component.</p>
+<h3>Evaluate its flight</h3><p>Click Evaluate inside the designer. The original HyForm flight physics runs on this device. After a successful flight, use Submit to name the design and add it to your project’s library.</p>
+<h3>Keep your work</h3><p>Save file includes the current design, library, and last evaluation. Open file restores them. Use ⌘S or Ctrl+S to save.</p>
+<p class="storage-note">The original interface calls the library “Team Designs.” In this standalone version, it is your local project library. No project data is sent to a server.</p>
+<p><a href="./about.html" target="_blank" rel="noopener">About &amp; research credits</a></p>
+</section>
+<p id="status" class="status-toast" role="status" aria-live="polite">Preparing the designer…</p>
+</main>
+<dialog id="confirmation" aria-labelledby="confirmation-title"><h2 id="confirmation-title">Change project?</h2><p id="confirmation-message"></p><form method="dialog"><button value="cancel" autofocus>Cancel</button><button value="confirm" class="primary">Continue</button></form></dialog>
+</body></html>

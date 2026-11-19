@@ -1,0 +1,30 @@
+{
+  "format": "hyform-project",
+  "version": 1,
+  "name": "HyForm example \u2014 baseline and 6 lb draft",
+  "createdAt": "2026-11-19T15:39:16.244Z",
+  "updatedAt": "2026-11-19T15:54:17.461Z",
+  "draftConfig": "*aMM0+++++*bNM2+++*cMN1+++*dLM2+++*eML1+++^ab^ac^ad^ae,6,3",
+  "lastEvaluation": {
+    "config": "*aMM0+++++*bNM2+++*cMN1+++*dLM2+++*eML1+++^ab^ac^ad^ae,6,3",
+    "result": "MetricsRecorded",
+    "range": 9.3,
+    "velocity": 19.67,
+    "cost": 3470,
+    "payload": 6,
+    "evaluatedAt": "2026-11-19T15:53:49.164Z"
+  },
+  "vehicles": [
+    {
+      "id": 1,
+      "tag": "Baseline",
+      "config": "*aMM0+++++*bNM2+++*cMN1+++*dLM2+++*eML1+++^ab^ac^ad^ae,5,3",
+      "result": "Success",
+      "range": 9.999290466308594,
+      "velocity": 20.000558853149414,
+      "cost": 3470.199951171875,
+      "payload": 5,
+      "valid": true
+    }
+  ]
+}

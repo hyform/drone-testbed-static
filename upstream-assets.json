@@ -1,0 +1,32 @@
+{
+  "repository": "https://github.com/hyform/drone-testbed-server",
+  "commit": "a390c949a716b79d2b5018b795708f998e9178f0",
+  "directory": "design/static/js/Build",
+  "files": [
+    {
+      "file": "UnityLoader.js",
+      "bytes": 157084,
+      "sha256": "0cecda3206284ca14c96f702c11e0a031804ecc2d757d0253c16923e3df01129"
+    },
+    {
+      "file": "webgl.data.unityweb",
+      "bytes": 9950313,
+      "sha256": "a3f48487dc99c1c7aabaeaeb90eb0c4596836b95f2e5c605fb367c84130b8476"
+    },
+    {
+      "file": "webgl.json",
+      "bytes": 392,
+      "sha256": "bce9a9a62de3b56d0af17f41095555f451e9048a991e6847698a48fcb2f780d2"
+    },
+    {
+      "file": "webgl.wasm.code.unityweb",
+      "bytes": 5441999,
+      "sha256": "54145de0c50d4909b8dd4efafb74f2424c935e3edfa08dfc51a945cf8d77cf0d"
+    },
+    {
+      "file": "webgl.wasm.framework.unityweb",
+      "bytes": 94767,
+      "sha256": "f20a36e69c8c8ba9b53ee445dda42ae5e903645c4cb656c9da149046baa0d803"
+    }
+  ]
+}
