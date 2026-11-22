@@ -23,9 +23,12 @@ test('the wrapper exposes distinct local tools and a non-overlapping evaluation 
   assert.match(app, /designer;Evaluated;/);
   assert.doesNotMatch(app, /result\s*=\s*['"]Success/);
   assert.match(css, /\.designer-main\.evaluation-active \.canvas-wrap\{bottom:/);
-  assert.match(worker, /BRIDGE_VERSION = 1/);
+  assert.match(worker, /BRIDGE_VERSION = 2/);
   assert.doesNotMatch(worker, /caches\.(?:open|match|keys)/);
   for (const endpoint of ['/repo/scenario/', '/repo/planshort/', '/repo/plan/']) assert.ok(worker.includes(endpoint));
+  for (const endpoint of ['/ai/designer1/', '/ai/opsplan/']) assert.ok(worker.includes(endpoint));
+  assert.match(app, /use_ai: 'True'/);
+  assert.ok(fs.statSync(path.join(root, 'docs/ai/designerAI.csv')).size > 100000);
 });
 test('each workspace exposes local save feedback and a contextual workflow handoff', () => {
   const app = fs.readFileSync(path.join(root, 'docs/app.js'), 'utf8');

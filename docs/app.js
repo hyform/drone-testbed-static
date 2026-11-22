@@ -410,7 +410,7 @@
         }
       });
       await ensureCurrentWorker();
-      for (const [key, value] of Object.entries({ username: 'local_designer', csrftoken: 'local', use_ai: 'False', is_tutorial: 'False' })) document.cookie = key + '=' + value + '; path=/; SameSite=Lax';
+      for (const [key, value] of Object.entries({ username: 'local_designer', csrftoken: 'local', use_ai: 'True', is_tutorial: 'False' })) document.cookie = key + '=' + value + '; path=/; SameSite=Lax';
       const url = new URL(location.href); url.searchParams.set('scene', scene); history.replaceState(null, '', url);
       $('loading-message').textContent = 'Loading the original HyForm ' + sceneNames[scene] + '…';
       game = UnityLoader.instantiate('gameContainer', './Build/webgl.json', {

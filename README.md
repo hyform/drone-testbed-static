@@ -98,8 +98,8 @@ browser project:
 Market 1 customer, payload, weight, and location data comes from
 `drone-testbed-server` commit `a390c949…`, file `ateams-basic.sql`. The original
 Unity code remains responsible for route limits, restricted airspace, delivery
-timing, operating/startup costs, and profit. Server AI remains out of scope. A
-plan becomes durable when **Submit** names it; in-progress Unity
+timing, operating/startup costs, and profit. A plan becomes durable when
+**Submit** names it; in-progress Unity
 route edits that have not been submitted are not restored after a reload.
 
 Browser autosave uses IndexedDB. It is a convenience, not a backup: clearing
@@ -107,6 +107,29 @@ site data removes it. Download project files for durable storage and sharing.
 The application is online-first and does not precache its 16 MB Unity runtime
 for offline use. The service worker exists only to bridge the compiled client’s
 legacy API-shaped requests to the selected storage implementation.
+
+## Restored AI assistants
+
+The original wand buttons are enabled in the retained Unity Design and
+Operations scenes. Their legacy API calls are answered locally by the service
+worker, so neither assistant requires the Django application server.
+
+The Designer wand evaluates the current drone, then calls `/ai/designer1/`.
+The browser ships the original 1,043-row `designerAI.csv` library created by the
+trained design RNN and reproduces the deployed selection logic: normalized
+range/cost distance, a shuffled best-100 pool, and five alternatives. Samples
+using the superseded design grammar are skipped before they reach the retained
+Unity client. The deployed historical wand queried this generated library; it
+did not run the TensorFlow 1 checkpoint for each click.
+
+The Operations wand posts the active market and selected fleet to
+`/ai/opsplan/`. A dependency-free browser port keeps the recovered sequential
+vehicle assignment, range, payload, 30-hour route horizon, parcel and food time
+windows, and extra food priority. It returns the plan-shaped response expected
+by the original Unity scene. The historical server used Google OR-Tools
+`PATH_CHEAPEST_ARC`; this browser implementation uses deterministic
+cheapest-feasible arcs with the same constraints rather than claiming
+byte-identical OR-Tools solutions.
 
 ## Direct browser-to-browser transfer
 
@@ -176,6 +199,8 @@ again after either page reloads.
 - `docs/designer.html`, `ops.html`, `business.html`, `app.js`, `studio.css`:
   full-window workspaces, evaluation states, and file UI.
 - `docs/market-data.js`: canonical Market 1 data from the original release.
+- `docs/assistant-core.js`, `ai/designerAI.csv`: browser-hosted Designer
+  candidate selection and Operations routing assistant.
 - `docs/project-model.js`: versioned format, validation, and activity parsing.
 - `docs/local-store.js`: atomic device-local IndexedDB transactions.
 - `docs/peer-sync.js`: manual WebRTC pairing and bounded project, activity,
@@ -189,9 +214,9 @@ again after either page reloads.
 
 The apparent legacy Unity API URLs are handled inside the browser and do not
 reach the static host. There is no application backend. Persistent hosted rooms,
-automatic signaling, TURN relay, automatic multi-user project merging, AI
-services, and server-managed experiment administration remain outside this
-version.
+automatic signaling, TURN relay, automatic multi-user project merging,
+conversational AI partners, and server-managed experiment administration remain
+outside this version.
 
 ## Validation
 
@@ -200,9 +225,9 @@ node --test tests/project.test.cjs tests/service-worker.test.cjs tests/static.te
 ```
 
 The automated suite covers legacy version 1 project compatibility, market/plan
-round trips, local scenario and plan endpoint behavior, WebRTC code/message
-validation, evaluation-state shell hooks, portable local assets, and hashes for
-every original compiled asset.
+round trips, local scenario and plan endpoint behavior, both restored wand
+endpoints, WebRTC code/message validation, evaluation-state shell hooks,
+portable local assets, and hashes for every original compiled asset.
 
 Browser verification on 2026-11-19 (Chromium / Codex in-app browser):
 
@@ -227,6 +252,15 @@ Browser verification on 2026-11-19 (Chromium / Codex in-app browser):
    returned to disconnected.
 10. Confirmed an automatic project request collected nothing before consent,
     then enabled collection for one participant and received a validated snapshot.
+
+Assistant verification on 2026-11-22 (Chromium / Codex in-app browser):
+
+1. Confirmed the original Designer wand appears in the retained Unity scene,
+   evaluates the baseline configuration, and renders five selectable alternatives
+   with range, cost, and capacity bars from the historical RNN library.
+2. Loaded the example project, added its Baseline vehicle in Operations, and
+   confirmed the original Operations wand returned and drew a two-stop feasible
+   route with success status.
 
 The two-process loopback WebRTC check disabled Chrome's local-IP mDNS
 obfuscation because the headless test processes could not resolve each other's
