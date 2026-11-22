@@ -1,6 +1,7 @@
 /* Adapts the original Unity client's data requests to device-local storage. */
-importScripts('./market-data.js', './project-model.js', './local-store.js');
-const BRIDGE_VERSION = 1;
+importScripts('./market-data.js', './project-model.js', './local-store.js', './assistant-core.js');
+const BRIDGE_VERSION = 2;
+let designerRowsPromise;
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 async function announce(type, extra = {}) {
@@ -11,6 +12,13 @@ function json(body, status = 200) {
 }
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function list(results) { return { count: results.length, next: null, previous: null, results }; }
+async function designerRows() {
+  if (!designerRowsPromise) designerRowsPromise = fetch(new URL('./ai/designerAI.csv', self.location.href)).then(response => {
+    if (!response.ok) throw new Error('The historical RNN candidate library could not be opened.');
+    return response.text();
+  }).then(HyformAssistants.parseDesignerCsv);
+  return designerRowsPromise;
+}
 function findScenario(project, id) {
   if (project.scenario?.id === id) return project.scenario;
   for (const plan of project.plans || []) if (plan.scenario?.id === id) return plan.scenario;
@@ -47,7 +55,42 @@ function createPlan(project, data) {
 async function localRequest(request, path) {
   const method = request.method;
   const data = ['POST', 'PUT', 'PATCH'].includes(method) ? await request.json() : null;
-  if (path === '/exper/session/' && method === 'GET') return json({ id: 1, name: 'Local project', market: 1, use_ai: false });
+  if (path === '/exper/session/' && method === 'GET') return json({ id: 1, name: 'Local project', market: 1, use_ai: true });
+  if (path === '/ai/designer1/' && method === 'GET') {
+    const query = new URL(request.url).searchParams;
+    const current = { range: +query.get('range') || 0, cost: +query.get('cost') || 0, payload: +query.get('payload') || 0 };
+    const pool = HyformAssistants.designerCandidates(await designerRows(), current, 100);
+    const seen = new Set(), results = [];
+    for (const candidate of pool) {
+      try {
+        HyformProject.configuration(candidate.config);
+        if (seen.has(candidate.config)) continue;
+        seen.add(candidate.config);
+        results.push({
+          id: results.length + 1, tag: 'AI alternative ' + (results.length + 1), config: candidate.config,
+          result: 'Success', range: candidate.range, velocity: candidate.velocity, cost: candidate.cost,
+          payload: candidate.payload, valid: true
+        });
+      } catch (_) { /* Skip RNN samples that use the superseded design grammar. */ }
+      if (results.length === 5) break;
+    }
+    if (results.length < 5) throw new Error('The RNN library did not return five compatible alternatives.');
+    return json(list(results));
+  }
+  if (path === '/ai/opsplan/' && method === 'POST') {
+    if (!data || typeof data.input !== 'string') throw new Error('The operations assistant input is invalid.');
+    const incoming = JSON.parse(data.input);
+    if (!incoming.scenario || !Array.isArray(incoming.paths)) throw new Error('The operations assistant plan is invalid.');
+    const generated = HyformAssistants.planOperations(incoming.scenario, incoming.paths.map(path => path.vehicle));
+    const customers = new Map(incoming.scenario.customers.map(customer => [customer.id, customer]));
+    incoming.tag = 'airesults';
+    incoming.paths.forEach((path, index) => {
+      const route = generated.paths[index];
+      path.customers = route.customerIds.map(id => ({ ...clone(customers.get(id)), deliverytime: 0 }));
+      path.leavetime = route.startTime; path.returntime = route.returnTime;
+    });
+    return json({ input: data.input, output: JSON.stringify(incoming) }, 201);
+  }
   if (path === '/repo/vehicle/' && method === 'GET') {
     const project = await HyformStore.read();
     return json(list(project.vehicles));
@@ -139,8 +182,9 @@ async function localRequest(request, path) {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
-  if (/^\/(repo|exper|ai)\//.test(url.pathname)) {
-    event.respondWith(localRequest(event.request, url.pathname).catch(error => json({ detail: error.message }, 400)));
+  const route = url.pathname.match(/\/(?:repo|exper|ai)\/.*$/)?.[0];
+  if (route && !url.pathname.endsWith('/ai/designerAI.csv')) {
+    event.respondWith(localRequest(event.request, route).catch(error => json({ detail: error.message }, 400)));
     return;
   }
 });
